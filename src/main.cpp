@@ -8,8 +8,8 @@
 
 // GPIO3: Cubecell AB01 RX - connect with SDS011 TXD
 // GPIO2: Cubecell AB01 TX - connect with SDS011 RXD
-#define _BoardRxPin GPIO3
-#define _BoardTxPin GPIO2
+#define _BoardRxPin GPIO7
+#define _BoardTxPin GPIO6
 
 // SDS011 with softSerial based communication for Heltec cubecell boards: 
 softSerial     softwareSerial(_BoardTxPin,_BoardRxPin); // sds(-> SDS011-RXD, -> SDS011-TXD)
