@@ -19,9 +19,10 @@ SdsDustSensor  sds(softwareSerial);
 #define DEVICE_RESTART_PERIOD 7 //Days
 #define TX_DUTY_CYCLE 30 //x10s
 
-uint8_t devEui[] = {  };
-uint8_t appEui[] = {  };
-uint8_t appKey[] = {  };
+uint8_t devEui[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+uint8_t appEui[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+uint8_t appKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 
 uint8_t nwkSKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 uint8_t appSKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -40,9 +41,11 @@ uint32_t appTxDutyCycle = TX_DUTY_CYCLE;
 uint8_t appPort = 50;
 int frameCount = 0;
 
+int sensorCleanSec = 10;
 int voltageBattMV = 0;
 int pm25encoded = 0;
 int pm10encoded = 0;
+bool confirmSettings = true;
 
 /////////// HANDLE DOWNLINKS ////////////
 void downLinkDataHandle(McpsIndication_t *mcpsIndication)
@@ -52,6 +55,9 @@ void downLinkDataHandle(McpsIndication_t *mcpsIndication)
 
   if (mcpsIndication->Port == 3) appTxDutyCycle = cmd;
   if (mcpsIndication->Port == 5) LoRaWAN.setDataRateForNoADR(cmd);
+  if (mcpsIndication->Port == 50) sensorCleanSec = cmd;
+
+  confirmSettings = true;
 }
 
 
@@ -66,13 +72,19 @@ static void prepareTxFrame()
   sds.begin(); // initalize SDS011 sensor
   sds.wakeup();
   sds.setQueryReportingMode(); // ensures sensor is in 'query' reporting mode
-  delay(10000); // working some seconds to clean the internal sensor (recommended 30 seconds= 30000)
+  delay(sensorCleanSec * 1000); // working some seconds to clean the internal sensor (recommended 30 seconds= 30000)
   PmResult pm = sds.queryPm();
   if (pm.isOk()) {
     pm25encoded = pm.pm25 * 10;
     pm10encoded = pm.pm10 * 10;
   }
-  sds.sleep();
+
+  WorkingStateResult state = sds.sleep();
+  if (state.isWorking()) { // Problem with sleeping the sensor, try again
+    delay(2000);
+    sds.sleep();
+  }
+
   detachInterrupt(_BoardRxPin); // prevents system hang after switching power off
 
   appData[appDataSize++] = (uint8_t)(voltageBattMV >> 8);
@@ -84,6 +96,11 @@ static void prepareTxFrame()
   appData[appDataSize++] = (uint8_t)(pm10encoded >> 8);
   appData[appDataSize++] = (uint8_t)(pm10encoded);
 
+  if (confirmSettings == true) {
+    appData[appDataSize++] = (uint8_t)(appTxDutyCycle);
+    appData[appDataSize++] = (uint8_t)(sensorCleanSec);
+    confirmSettings = false;
+  }
 }
 void setup() {
   boardInitMcu();
