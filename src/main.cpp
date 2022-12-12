@@ -80,9 +80,9 @@ static void prepareTxFrame()
   }
 
   WorkingStateResult state = sds.sleep();
-  if (state.isWorking()) { // Problem with sleeping the sensor, try again
+  while (state.isWorking()) { // Problem with sleeping the sensor, try again
     delay(2000);
-    sds.sleep();
+    WorkingStateResult state = sds.sleep();
   }
 
   detachInterrupt(_BoardRxPin); // prevents system hang after switching power off
